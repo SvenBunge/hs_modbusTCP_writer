@@ -84,7 +84,7 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
 
             builder = BinaryPayloadBuilder(byteorder=self.byte_order(), wordorder=self.word_order())
 
-            eval('builder.' + register_settings.get('method') + '(' + str(value) + ')', {"builder": builder})
+            getattr(builder, register_settings.get('method'))(value)
             payload = builder.to_registers()
 
             self.DEBUG.set_value("Write type " + str(reg_type) + " in register  " + str(reg_address), str(value))
