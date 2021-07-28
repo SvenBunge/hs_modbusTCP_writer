@@ -1,13 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
 <config>
     <modules>
-        <module category="Datenaustausch" context="hs_modbusTCP_writer14185" id="14185" name="hs_modbusTCP_writer" sinternal_name="hs_modbusTCP_writer" external_name="ModbusTCP Writer (14185)" version="0.1">
+        <module category="Datenaustausch" context="hs_modbusTCP_writer14185" id="14185" name="hs_modbusTCP_writer" sinternal_name="hs_modbusTCP_writer" external_name="ModbusTCP Writer (14185)" version="0.2">
             <inputs>
                 <input type="string" const_name="modbus_slave_ip" init_value="127.0.0.1">IP of modbus server</input>
                 <input type="number" const_name="port" init_value="502">Modbus TCP Port (default: 502)</input>
                 <input type="number" const_name="slave-id" init_value="1">Modbus slave id</input>
                 <input type="number" const_name="modbus_wordorder" init_value="0">Word order: 0: LittleEndian (Modbus default); 1: BigEndian (Sunspec)</input>
                 <input type="number" const_name="modbus_byteorder" init_value="1">Byte order: 1: LittleEndian; 1: BigEndian (Modbus default)</input>
+                <input type="number" const_name="write_single_reg" init_value="0">Write single registers (Use only if the regular mode doesn't work)</input>
                 <!-- 1. register -->
                 <input type="number" const_name="holding_register1" init_value="-1">Reg1: holding register address in dec (-1: disabled)</input>
                 <input type="string" const_name="HR1_datatype" init_value="uint16">Reg1: Data type of register</input>

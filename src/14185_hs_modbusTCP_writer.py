@@ -21,22 +21,23 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
         self.PIN_I_SLAVE_ID=3
         self.PIN_I_MODBUS_WORDORDER=4
         self.PIN_I_MODBUS_BYTEORDER=5
-        self.PIN_I_HOLDING_REGISTER1=6
-        self.PIN_I_HR1_DATATYPE=7
-        self.PIN_I_HR1_NUM_VALUE=8
-        self.PIN_I_HR1_STR_VALUE=9
-        self.PIN_I_HOLDING_REGISTER2=10
-        self.PIN_I_HR2_DATATYPE=11
-        self.PIN_I_HR2_NUM_VALUE=12
-        self.PIN_I_HR2_STR_VALUE=13
-        self.PIN_I_HOLDING_REGISTER3=14
-        self.PIN_I_HR3_DATATYPE=15
-        self.PIN_I_HR3_NUM_VALUE=16
-        self.PIN_I_HR3_STR_VALUE=17
-        self.PIN_I_HOLDING_REGISTER4=18
-        self.PIN_I_HR4_DATATYPE=19
-        self.PIN_I_HR4_NUM_VALUE=20
-        self.PIN_I_HR4_STR_VALUE=21
+        self.PIN_I_WRITE_SINGLE_REG=6
+        self.PIN_I_HOLDING_REGISTER1=7
+        self.PIN_I_HR1_DATATYPE=8
+        self.PIN_I_HR1_NUM_VALUE=9
+        self.PIN_I_HR1_STR_VALUE=10
+        self.PIN_I_HOLDING_REGISTER2=11
+        self.PIN_I_HR2_DATATYPE=12
+        self.PIN_I_HR2_NUM_VALUE=13
+        self.PIN_I_HR2_STR_VALUE=14
+        self.PIN_I_HOLDING_REGISTER3=15
+        self.PIN_I_HR3_DATATYPE=16
+        self.PIN_I_HR3_NUM_VALUE=17
+        self.PIN_I_HR3_STR_VALUE=18
+        self.PIN_I_HOLDING_REGISTER4=19
+        self.PIN_I_HR4_DATATYPE=20
+        self.PIN_I_HR4_NUM_VALUE=21
+        self.PIN_I_HR4_STR_VALUE=22
         self.PIN_O_WRITE_COUNT=1
         self.FRAMEWORK._run_in_context_thread(self.on_init)
 
@@ -79,24 +80,32 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
 
             register_settings = self.data_types.get(reg_type)
             if register_settings is None:  # No matching type entry found. lets skip over
-                self.DEBUG.set_value("No matching data type found: ",  reg_type)
+                self.DEBUG.set_value("No matching data type found: ", reg_type)
                 return None
 
             builder = BinaryPayloadBuilder(byteorder=self.byte_order(), wordorder=self.word_order())
 
             getattr(builder, register_settings.get('method'))(value)
-            payload = builder.to_registers()
 
+            # Log Payload as string
+            payload = builder.to_registers()
             self.DEBUG.set_value("Write type " + str(reg_type) + " in register  " + str(reg_address), str(value))
             self.DEBUG.set_value("Writing payload", payload)
 
+            # Create real payload and write - with single writes or write_registers
             payload = builder.build()
-            self.client.write_registers(reg_address, payload, skip_encode=True, unit=unit_id)
+            if bool(self._get_input_value(self.PIN_I_WRITE_SINGLE_REG)):
+                for i, val in enumerate(payload):
+                    self.client.write_register(reg_address + i, val, unit=unit_id)
+            else:
+                self.client.write_registers(reg_address, payload, skip_encode=True, unit=unit_id)
 
+            # Increate write success count
             self._set_output_value(self.PIN_O_WRITE_COUNT, ++self.counter)
 
         except Exception as err:
             self.DEBUG.set_value("Last exception msg logged", "Message: " + err.message)
+            self.LOGGER.error(err)
             raise
 
     def word_order(self):
