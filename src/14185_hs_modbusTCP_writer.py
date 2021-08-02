@@ -21,23 +21,22 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
         self.PIN_I_SLAVE_ID=3
         self.PIN_I_MODBUS_WORDORDER=4
         self.PIN_I_MODBUS_BYTEORDER=5
-        self.PIN_I_WRITE_SINGLE_REG=6
-        self.PIN_I_HOLDING_REGISTER1=7
-        self.PIN_I_HR1_DATATYPE=8
-        self.PIN_I_HR1_NUM_VALUE=9
-        self.PIN_I_HR1_STR_VALUE=10
-        self.PIN_I_HOLDING_REGISTER2=11
-        self.PIN_I_HR2_DATATYPE=12
-        self.PIN_I_HR2_NUM_VALUE=13
-        self.PIN_I_HR2_STR_VALUE=14
-        self.PIN_I_HOLDING_REGISTER3=15
-        self.PIN_I_HR3_DATATYPE=16
-        self.PIN_I_HR3_NUM_VALUE=17
-        self.PIN_I_HR3_STR_VALUE=18
-        self.PIN_I_HOLDING_REGISTER4=19
-        self.PIN_I_HR4_DATATYPE=20
-        self.PIN_I_HR4_NUM_VALUE=21
-        self.PIN_I_HR4_STR_VALUE=22
+        self.PIN_I_HOLDING_REGISTER1=6
+        self.PIN_I_HR1_DATATYPE=7
+        self.PIN_I_HR1_NUM_VALUE=8
+        self.PIN_I_HR1_STR_VALUE=9
+        self.PIN_I_HOLDING_REGISTER2=10
+        self.PIN_I_HR2_DATATYPE=11
+        self.PIN_I_HR2_NUM_VALUE=12
+        self.PIN_I_HR2_STR_VALUE=13
+        self.PIN_I_HOLDING_REGISTER3=14
+        self.PIN_I_HR3_DATATYPE=15
+        self.PIN_I_HR3_NUM_VALUE=16
+        self.PIN_I_HR3_STR_VALUE=17
+        self.PIN_I_HOLDING_REGISTER4=18
+        self.PIN_I_HR4_DATATYPE=19
+        self.PIN_I_HR4_NUM_VALUE=20
+        self.PIN_I_HR4_STR_VALUE=21
         self.PIN_O_WRITE_COUNT=1
         self.FRAMEWORK._run_in_context_thread(self.on_init)
 
@@ -49,17 +48,20 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
         self.client = None
         self.counter = 0
         self.data_types = {
-            'int8': {'method': 'add_8bit_int'},
-            'uint8': {'method': 'add_8bit_uint'},
-            'int16': {'method': 'add_16bit_int'},
-            'uint16': {'method': 'add_16bit_uint'},
-            'int32': {'method': 'add_32bit_int'},
-            'uint32': {'method': 'add_32bit_uint'},
-            'int64': {'method': 'add_64bit_int'},
-            'uint64': {'method': 'add_64bit_uint'},
-            'float32': {'method': 'add_32bit_float'},
-            'float64': {'method': 'add_64bit_float'},
-            'string': {'method': 'add_string'}
+            'int8': {'method': 'add_8bit_int', 'singleWrite': False, 'minVal': -128, 'maxVal': 127},
+            'uint8': {'method': 'add_8bit_uint', 'singleWrite': True, 'minVal': 0, 'maxVal': 255},
+            'int16': {'method': 'add_16bit_int', 'singleWrite': False, 'minVal': -32768, 'maxVal': 32767},
+            'uint16': {'method': 'add_16bit_uint', 'singleWrite': True, 'minVal': 0, 'maxVal': 65535},
+            'int32': {'method': 'add_32bit_int', 'singleWrite': False, 'minVal': -2147483648, 'maxVal': 2147483647},
+            'uint32': {'method': 'add_32bit_uint', 'singleWrite': False, 'minVal': 0, 'maxVal': 4294967295},
+            'int64': {'method': 'add_64bit_int', 'singleWrite': False, 'minVal': -9223372036854775808,
+                      'maxVal': 9223372036854775807},
+            'uint64': {'method': 'add_64bit_uint', 'singleWrite': False, 'minVal': 0, 'maxVal': 18446744073709551615},
+            'float32': {'method': 'add_32bit_float', 'singleWrite': False, 'minVal': -3.402823E+38,
+                        'maxVal': 3.402823E+38},
+            'float64': {'method': 'add_64bit_float', 'singleWrite': False, 'minVal': -1.79769313486232E+308,
+                        'maxVal': 1.79769313486232E+308 },
+            'string': {'method': 'add_string', 'singleWrite': False}
         }
 
     def write_value(self, reg_address, reg_type, value):
@@ -83,25 +85,31 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
                 self.DEBUG.set_value("No matching data type found: ", reg_type)
                 return None
 
-            builder = BinaryPayloadBuilder(byteorder=self.byte_order(), wordorder=self.word_order())
+            # Bounce check
+            if reg_type != 'string' and register_settings.get('minVal') > value:
+                self.LOGGER.info("Skipping " + reg_address + " of type " + reg_type + " because val " + value +
+                                 " fall below type limit!")
+                return None
+            if reg_type != 'string' and register_settings.get('maxVal') < value:
+                self.LOGGER.info("Skipping " + reg_address + " of type " + reg_type + " because val " + value +
+                                 " exceeds type limit!")
+                return None
 
-            getattr(builder, register_settings.get('method'))(value)
-
-            # Create Payload as list of registers (can be logged)
-            payload = builder.to_registers()
             self.DEBUG.set_value("Write type " + str(reg_type) + " in register  " + str(reg_address), str(value))
-            self.DEBUG.set_value("Writing payload", payload)
 
-            if bool(self._get_input_value(self.PIN_I_WRITE_SINGLE_REG)):
-                for i, val in enumerate(payload):
-                    handle = self.client.write_register(reg_address + i, val, unit=unit_id)
+            # For simple datatype writes without transforming into a single register. Higher compatibility with
+            # devices because not all support writing multiple registers.
+            if register_settings.get('singleWrite'):
+                handle = self.client.write_register(reg_address, value, unit=unit_id)
             else:
-                # Create real payload for write_registers
+                builder = BinaryPayloadBuilder(byteorder=self.byte_order(), wordorder=self.word_order())
+                getattr(builder, register_settings.get('method'))(value)
                 payload = builder.build()
                 handle = self.client.write_registers(reg_address, payload, skip_encode=True, unit=unit_id)
+
             self.DEBUG.set_value("Response:", handle)
 
-            # Increate write success count
+            # Increase write success count
             self._set_output_value(self.PIN_O_WRITE_COUNT, ++self.counter)
 
         except Exception as err:
