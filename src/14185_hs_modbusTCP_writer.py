@@ -87,18 +87,19 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
 
             getattr(builder, register_settings.get('method'))(value)
 
-            # Log Payload as string
+            # Create Payload as list of registers (can be logged)
             payload = builder.to_registers()
             self.DEBUG.set_value("Write type " + str(reg_type) + " in register  " + str(reg_address), str(value))
             self.DEBUG.set_value("Writing payload", payload)
 
-            # Create real payload and write - with single writes or write_registers
-            payload = builder.build()
             if bool(self._get_input_value(self.PIN_I_WRITE_SINGLE_REG)):
                 for i, val in enumerate(payload):
-                    self.client.write_register(reg_address + i, val, unit=unit_id)
+                    handle = self.client.write_register(reg_address + i, val, unit=unit_id)
             else:
-                self.client.write_registers(reg_address, payload, skip_encode=True, unit=unit_id)
+                # Create real payload for write_registers
+                payload = builder.build()
+                handle = self.client.write_registers(reg_address, payload, skip_encode=True, unit=unit_id)
+            self.DEBUG.set_value("Response:", handle)
 
             # Increate write success count
             self._set_output_value(self.PIN_O_WRITE_COUNT, ++self.counter)
