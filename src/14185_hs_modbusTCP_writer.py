@@ -15,7 +15,7 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
     def __init__(self, homeserver_context):
         hsl20_3.BaseModule.__init__(self, homeserver_context, "hs_modbusTCP_writer14185")
         self.FRAMEWORK = self._get_framework()
-        self.LOGGER = self._get_logger(hsl20_3.LOGGING_SYSLOG,())
+        self.LOGGER = self._get_logger(hsl20_3.LOGGING_NONE,())
         self.PIN_I_MODBUS_SLAVE_IP=1
         self.PIN_I_PORT=2
         self.PIN_I_SLAVE_ID=3
