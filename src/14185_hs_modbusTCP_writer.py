@@ -1,5 +1,6 @@
 # coding: utf-8
 
+import time
 import pymodbus  # To not delete this module reference!!
 from pymodbus.constants import Endian
 from pymodbus.payload import BinaryPayloadBuilder
@@ -99,18 +100,25 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
 
             # For simple datatype writes without transforming into a single register. Higher compatibility with
             # devices because not all support writing multiple registers.
-            if register_settings.get('singleWrite'):
-                handle = self.client.write_register(reg_address, value, unit=unit_id)
-            else:
-                builder = BinaryPayloadBuilder(byteorder=self.byte_order(), wordorder=self.word_order())
-                getattr(builder, register_settings.get('method'))(value)
-                payload = builder.build()
-                handle = self.client.write_registers(reg_address, payload, skip_encode=True, unit=unit_id)
+            for attempt in range(3):
+                if register_settings.get('singleWrite'):
+                    handle = self.client.write_register(reg_address, value, unit=unit_id)
+                else:
+                    builder = BinaryPayloadBuilder(byteorder=self.byte_order(), wordorder=self.word_order())
+                    getattr(builder, register_settings.get('method'))(value)
+                    payload = builder.build()
+                    handle = self.client.write_registers(reg_address, payload, skip_encode=True, unit=unit_id)
 
+                if handle.isError():
+                    time.sleep(0.1)
+                else:
+                    break
+                
             self.DEBUG.set_value("Response:", handle)
 
             # Increase write success count
-            self._set_output_value(self.PIN_O_WRITE_COUNT, ++self.counter)
+            if not handle.isError():
+                self._set_output_value(self.PIN_O_WRITE_COUNT, ++self.counter)
 
         except Exception as err:
             self.DEBUG.set_value("Last exception msg logged", "Message: " + err.message)
