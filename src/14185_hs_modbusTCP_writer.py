@@ -118,7 +118,8 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
 
             # Increase write success count
             if not handle.isError():
-                self._set_output_value(self.PIN_O_WRITE_COUNT, ++self.counter)
+                self.counter += 1
+                self._set_output_value(self.PIN_O_WRITE_COUNT, self.counter)
 
         except Exception as err:
             self.DEBUG.set_value("Last exception msg logged", "Message: " + err.message)
