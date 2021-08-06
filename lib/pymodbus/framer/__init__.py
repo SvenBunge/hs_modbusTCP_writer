@@ -8,6 +8,8 @@ FRAME_HEADER = 'BB'
 # Transaction Id, Protocol ID, Length, Unit ID, Function Code
 SOCKET_FRAME_HEADER = BYTE_ORDER + 'HHH' + FRAME_HEADER
 
+# Function Code
+TLS_FRAME_HEADER = BYTE_ORDER + 'B'
 
 class ModbusFramer(IModbusFramer):
     """
@@ -26,7 +28,7 @@ class ModbusFramer(IModbusFramer):
         else:
             if 0 in units or 0xFF in units:
                 # Handle Modbus TCP unit identifier (0x00 0r 0xFF)
-                # in async requests
+                # in asynchronous requests
                 return True
             return self._header['uid'] in units
 

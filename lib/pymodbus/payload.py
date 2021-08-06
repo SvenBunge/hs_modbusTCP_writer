@@ -14,7 +14,7 @@ from pymodbus.utilities import pack_bitstring
 from pymodbus.utilities import unpack_bitstring
 from pymodbus.utilities import make_byte_string
 from pymodbus.exceptions import ParameterException
-
+from pymodbus.compat import unicode_string, IS_PYTHON3, PYTHON_VERSION
 # --------------------------------------------------------------------------- #
 # Logging
 # --------------------------------------------------------------------------- #
@@ -25,6 +25,7 @@ _logger = logging.getLogger(__name__)
 WC = {
     "b": 1,
     "h": 2,
+    "e": 2,
     "i": 4,
     "l": 4,
     "q": 8,
@@ -124,6 +125,17 @@ class BinaryPayloadBuilder(IPayloadBuilder):
         _logger.debug(payload)
         return payload
 
+    def to_coils(self):
+        """Convert the payload buffer into a coil
+        layout that can be used as a context block.
+
+        :returns: The coil layout to use as a block
+        """
+        payload = self.to_registers()
+        coils = [bool(int(bit)) for reg
+                 in payload for bit in format(reg, '016b')]
+        return coils
+
     def build(self):
         """ Return the payload buffer as a list
 
@@ -218,6 +230,18 @@ class BinaryPayloadBuilder(IPayloadBuilder):
         p_string = self._pack_words(fstring, value)
         self._payload.append(p_string)
 
+    def add_16bit_float(self, value):
+        """ Adds a 16 bit float to the buffer
+
+        :param value: The value to add to the buffer
+        """
+        if IS_PYTHON3 and PYTHON_VERSION.minor >= 6:
+            fstring = 'e'
+            p_string = self._pack_words(fstring, value)
+            self._payload.append(p_string)
+        else:
+            _logger.warning("float16 only supported on python3.6 and above!!!")
+
     def add_32bit_float(self, value):
         """ Adds a 32 bit float to the buffer
 
@@ -292,7 +316,12 @@ class BinaryPayloadDecoder(object):
         raise ParameterException('Invalid collection of registers supplied')
 
     @classmethod
-    def fromCoils(klass, coils, byteorder=Endian.Little):
+    def bit_chunks(cls, coils, size=8):
+        chunks = [coils[i: i + size] for i in range(0, len(coils), size)]
+        return chunks
+
+    @classmethod
+    def fromCoils(klass, coils, byteorder=Endian.Little, wordorder=Endian.Big):
         """ Initialize a payload decoder with the result of
         reading a collection of coils from a modbus device.
 
@@ -303,7 +332,14 @@ class BinaryPayloadDecoder(object):
         :returns: An initialized PayloadDecoder
         """
         if isinstance(coils, list):
-            payload = pack_bitstring(coils)
+            payload = b''
+            padding = len(coils) % 8
+            if padding:    # Pad zero's
+                extra = [False] * padding
+                coils = extra + coils
+            chunks = klass.bit_chunks(coils)
+            for chunk in chunks:
+                payload += pack_bitstring(chunk[::-1])
             return klass(payload, byteorder)
         raise ParameterException('Invalid collection of coils supplied')
 
@@ -320,7 +356,7 @@ class BinaryPayloadDecoder(object):
         :return:
         """
         handle = make_byte_string(handle)
-        wc = WC.get(fstring.lower())//2
+        wc = WC.get(fstring.lower()) // 2
         up = "!{}H".format(wc)
         handle = unpack(up, handle)
         if self._wordorder == Endian.Little:
@@ -329,8 +365,8 @@ class BinaryPayloadDecoder(object):
         # Repack as unsigned Integer
         pk = self._byteorder + 'H'
         handle = [pack(pk, p) for p in handle]
-        handle = b''.join(handle)
         _logger.debug(handle)
+        handle = b''.join(handle)
         return handle
 
     def reset(self):
@@ -419,6 +455,18 @@ class BinaryPayloadDecoder(object):
         handle = self._payload[self._pointer - 8:self._pointer]
         handle = self._unpack_words(fstring, handle)
         return unpack("!"+fstring, handle)[0]
+
+    def decode_16bit_float(self):
+        """ Decodes a 16 bit float from the buffer
+        """
+        if IS_PYTHON3 and PYTHON_VERSION.minor >= 6:
+            self._pointer += 2
+            fstring = 'e'
+            handle = self._payload[self._pointer - 2:self._pointer]
+            handle = self._unpack_words(fstring, handle)
+            return unpack("!"+fstring, handle)[0]
+        else:
+            _logger.warning("float16 only supported on python3.6 and above!!!")
 
     def decode_32bit_float(self):
         """ Decodes a 32 bit float from the buffer

@@ -54,13 +54,13 @@ class ModbusRtuFramer(ModbusFramer):
         (1/Baud)(bits) = delay seconds
     """
 
-    def __init__(self, decoder, client):
+    def __init__(self, decoder, client=None):
         """ Initializes a new instance of the framer
 
         :param decoder: The decoder factory implementation to use
         """
         self._buffer = b''
-        self._header = {'uid': 0x00, 'len': 0, 'crc': '0000'}
+        self._header = {'uid': 0x00, 'len': 0, 'crc': b'\x00\x00'}
         self._hsize = 0x01
         self._end = b'\x0d\x0a'
         self._min_frame_size = 4
@@ -89,10 +89,10 @@ class ModbusRtuFramer(ModbusFramer):
             self.populateHeader()
             frame_size = self._header['len']
             data = self._buffer[:frame_size - 2]
-            crc = self._buffer[frame_size - 2:frame_size]
+            crc = self._header['crc']
             crc_val = (byte2int(crc[0]) << 8) + byte2int(crc[1])
             return checkCRC(data, crc_val)
-        except (IndexError, KeyError):
+        except (IndexError, KeyError, struct.error):
             return False
 
     def advanceFrame(self):
@@ -102,13 +102,10 @@ class ModbusRtuFramer(ModbusFramer):
         it or determined that it contains an error. It also has to reset the
         current frame header handle
         """
-        try:
-            self._buffer = self._buffer[self._header['len']:]
-        except KeyError:
-            #   Error response, no header len found
-            self.resetFrame()
+
+        self._buffer = self._buffer[self._header['len']:]
         _logger.debug("Frame advanced, resetting header!!")
-        self._header = {}
+        self._header = {'uid': 0x00, 'len': 0, 'crc': b'\x00\x00'}
 
     def resetFrame(self):
         """
@@ -122,7 +119,7 @@ class ModbusRtuFramer(ModbusFramer):
         _logger.debug("Resetting frame - Current Frame in "
                       "buffer - {}".format(hexlify_packets(self._buffer)))
         self._buffer = b''
-        self._header = {}
+        self._header = {'uid': 0x00, 'len': 0, 'crc': b'\x00\x00'}
 
     def isFrameReady(self):
         """
@@ -132,25 +129,38 @@ class ModbusRtuFramer(ModbusFramer):
 
         :returns: True if ready, False otherwise
         """
-        return len(self._buffer) > self._hsize
+        if len(self._buffer) <= self._hsize:
+            return False
+
+        try:
+            # Frame is ready only if populateHeader() successfully populates crc field which finishes RTU frame
+            # Otherwise, if buffer is not yet long enough, populateHeader() raises IndexError
+            self.populateHeader()
+        except IndexError:
+            return False
+
+        return True
 
     def populateHeader(self, data=None):
         """
         Try to set the headers `uid`, `len` and `crc`.
 
         This method examines `self._buffer` and writes meta
-        information into `self._header`. It calculates only the
-        values for headers that are not already in the dictionary.
+        information into `self._header`.
 
         Beware that this method will raise an IndexError if
         `self._buffer` is not yet long enough.
         """
-        data = data if data else self._buffer
+        data = data if data is not None else self._buffer
         self._header['uid'] = byte2int(data[0])
         func_code = byte2int(data[1])
         pdu_class = self.decoder.lookupPduClass(func_code)
         size = pdu_class.calculateRtuFrameSize(data)
         self._header['len'] = size
+
+        if len(data) < size:
+            # crc yet not available
+            raise IndexError
         self._header['crc'] = data[size - 2:size]
 
     def addToFrame(self, message):
@@ -186,6 +196,7 @@ class ModbusRtuFramer(ModbusFramer):
         :param result: The response packet
         """
         result.unit_id = self._header['uid']
+        result.transaction_id = self._header['uid']
 
     # ----------------------------------------------------------------------- #
     # Public Member Functions
@@ -197,7 +208,7 @@ class ModbusRtuFramer(ModbusFramer):
         This takes in a new request packet, adds it to the current
         packet stream, and performs framing on it. That is, checks
         for complete messages, and once found, will process all that
-        exist.  This handles the case when we read N + 1 or 1 / N
+        exist.  This handles the case when we read N + 1 or 1 // N
         messages at a time instead of 1.
 
         The processed and decoded messages are pushed to the callback
@@ -206,8 +217,9 @@ class ModbusRtuFramer(ModbusFramer):
         :param data: The new packet data
         :param callback: The function to send results to
         :param unit: Process if unit id matches, ignore otherwise (could be a
-        list of unit ids (server) or single unit id(client/server)
+               list of unit ids (server) or single unit id(client/server)
         :param single: True or False (If True, ignore unit address validation)
+
         """
         if not isinstance(unit, (list, tuple)):
             unit = [unit]
@@ -221,6 +233,9 @@ class ModbusRtuFramer(ModbusFramer):
                     _logger.debug("Not a valid unit id - {}, "
                                   "ignoring!!".format(self._header['uid']))
                     self.resetFrame()
+            else:
+                _logger.debug("Frame check failed, ignoring!!")
+                self.resetFrame()
         else:
             _logger.debug("Frame - [{}] not ready".format(data))
 
@@ -235,6 +250,7 @@ class ModbusRtuFramer(ModbusFramer):
                              message.unit_id,
                              message.function_code) + data
         packet += struct.pack(">H", computeCRC(packet))
+        message.transaction_id = message.unit_id  # Ensure that transaction is actually the unit id for serial comms
         return packet
 
     def sendPacket(self, message):
@@ -243,9 +259,8 @@ class ModbusRtuFramer(ModbusFramer):
         :param message: Message to be sent over the bus
         :return:
         """
-        # _logger.debug("Current transaction state - {}".format(
-        #     ModbusTransactionState.to_string(self.client.state))
-        # )
+        start = time.time()
+        timeout = start + self.client.timeout
         while self.client.state != ModbusTransactionState.IDLE:
             if self.client.state == ModbusTransactionState.TRANSACTION_COMPLETE:
                 ts = round(time.time(), 6)
@@ -253,7 +268,7 @@ class ModbusRtuFramer(ModbusFramer):
                               "Current Time stamp - {}".format(
                     self.client.last_frame_end, ts)
                 )
-                
+
                 if self.client.last_frame_end:
                     idle_time = self.client.idle_time()
                     if round(ts - idle_time, 6) <= self.client.silent_interval:
@@ -266,15 +281,20 @@ class ModbusRtuFramer(ModbusFramer):
                     # Recovering from last error ??
                     time.sleep(self.client.silent_interval)
                 self.client.state = ModbusTransactionState.IDLE
+            elif self.client.state == ModbusTransactionState.RETRYING:
+                # Simple lets settle down!!!
+                # To check for higher baudrates
+                time.sleep(self.client.timeout)
+                break
             else:
-                _logger.debug("Sleeping")
-                time.sleep(self.client.silent_interval)
+                if time.time() > timeout:
+                    _logger.debug("Spent more time than the read time out, "
+                                  "resetting the transaction to IDLE")
+                    self.client.state = ModbusTransactionState.IDLE
+                else:
+                    _logger.debug("Sleeping")
+                    time.sleep(self.client.silent_interval)
         size = self.client.send(message)
-        # if size:
-        #     _logger.debug("Changing transaction state from 'SENDING' "
-        #                   "to 'WAITING FOR REPLY'")
-        #     self.client.state = ModbusTransactionState.WAITING_FOR_REPLY
-
         self.client.last_frame_end = round(time.time(), 6)
         return size
 

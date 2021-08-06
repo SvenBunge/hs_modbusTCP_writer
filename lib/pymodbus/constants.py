@@ -15,6 +15,15 @@ class Defaults(Singleton):
 
        The default modbus tcp server port (502)
 
+    .. attribute:: TLSPort
+
+       The default modbus tcp over tls server port (802)
+
+
+    .. attribute:: Backoff
+
+       The default exponential backoff delay (0.3 seconds)
+
     .. attribute:: Retries
 
        The default number of times a client should retry the given
@@ -24,7 +33,12 @@ class Defaults(Singleton):
 
        A flag indicating if a transaction should be retried in the
        case that an empty response is received. This is useful for
-       slow clients that may need more time to process a requst.
+       slow clients that may need more time to process a request.
+
+    .. attribute:: RetryOnInvalid
+
+       A flag indicating if a transaction should be retried in the
+       case that an invalid response is received.
 
     .. attribute:: Timeout
 
@@ -88,10 +102,22 @@ class Defaults(Singleton):
        should be returned or simply ignored. This is useful for the case of a
        serial server emulater where a request to a non-existant slave on a bus
        will never respond. The client in this case will simply timeout.
+
+    .. attribute:: broadcast_enable
+
+      When False unit_id 0 will be treated as any other unit_id. When True and
+      the unit_id is 0 the server will execute all requests on all server
+      contexts and not respond and the client will skip trying to receive a
+      response. Default value False does not conform to Modbus spec but maintains
+      legacy behavior for existing pymodbus users.
+
     '''
     Port                = 502
+    TLSPort             = 802
+    Backoff             = 0.3
     Retries             = 3
     RetryOnEmpty        = False
+    RetryOnInvalid      = False
     Timeout             = 3
     Reconnects          = 0
     TransactionId       = 0
@@ -104,6 +130,7 @@ class Defaults(Singleton):
     ZeroMode            = False
     IgnoreMissingSlaves = False
     ReadSize            = 1024
+    broadcast_enable    = False
 
 class ModbusStatus(Singleton):
     '''
