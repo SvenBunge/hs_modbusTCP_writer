@@ -22,22 +22,22 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
         self.PIN_I_SLAVE_ID=3
         self.PIN_I_MODBUS_WORDORDER=4
         self.PIN_I_MODBUS_BYTEORDER=5
-        self.PIN_I_HOLDING_REGISTER1=6
-        self.PIN_I_HR1_DATATYPE=7
-        self.PIN_I_HR1_NUM_VALUE=8
-        self.PIN_I_HR1_STR_VALUE=9
-        self.PIN_I_HOLDING_REGISTER2=10
-        self.PIN_I_HR2_DATATYPE=11
-        self.PIN_I_HR2_NUM_VALUE=12
-        self.PIN_I_HR2_STR_VALUE=13
-        self.PIN_I_HOLDING_REGISTER3=14
-        self.PIN_I_HR3_DATATYPE=15
-        self.PIN_I_HR3_NUM_VALUE=16
-        self.PIN_I_HR3_STR_VALUE=17
-        self.PIN_I_HOLDING_REGISTER4=18
-        self.PIN_I_HR4_DATATYPE=19
-        self.PIN_I_HR4_NUM_VALUE=20
-        self.PIN_I_HR4_STR_VALUE=21
+        self.PIN_I_R1_ADDRESS=6
+        self.PIN_I_R1_DATATYPE=7
+        self.PIN_I_R1_NUM_VALUE=8
+        self.PIN_I_R1_STR_VALUE=9
+        self.PIN_I_R2_ADDRESS=10
+        self.PIN_I_R2_DATATYPE=11
+        self.PIN_I_R2_NUM_VALUE=12
+        self.PIN_I_R2_STR_VALUE=13
+        self.PIN_I_R3_ADDRESS=14
+        self.PIN_I_R3_DATATYPE=15
+        self.PIN_I_R3_NUM_VALUE=16
+        self.PIN_I_R3_STR_VALUE=17
+        self.PIN_I_R4_ADDRESS=18
+        self.PIN_I_R4_DATATYPE=19
+        self.PIN_I_R4_NUM_VALUE=20
+        self.PIN_I_R4_STR_VALUE=21
         self.PIN_O_WRITE_COUNT=1
         self.FRAMEWORK._run_in_context_thread(self.on_init)
 
@@ -88,18 +88,19 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
 
             # Bounce check
             if reg_type != 'string' and register_settings.get('minVal') > value:
-                self.LOGGER.info("Skipping " + reg_address + " of type " + reg_type + " because val " + value +
-                                 " fall below type limit!")
+                self.LOGGER.info("Skipping " + str(reg_address) + " of type " + reg_type + " because val "
+                                 + str(value) + " fall below type limit!")
                 return None
             if reg_type != 'string' and register_settings.get('maxVal') < value:
-                self.LOGGER.info("Skipping " + reg_address + " of type " + reg_type + " because val " + value +
-                                 " exceeds type limit!")
+                self.LOGGER.info("Skipping " + str(reg_address) + " of type " + reg_type + " because val "
+                                 + str(value) + " exceeds type limit!")
                 return None
 
             self.DEBUG.set_value("Write type " + str(reg_type) + " in register  " + str(reg_address), str(value))
 
             # For simple datatype writes without transforming into a single register. Higher compatibility with
             # devices because not all support writing multiple registers.
+            handle = None
             for attempt in range(3):
                 if register_settings.get('singleWrite'):
                     handle = self.client.write_register(reg_address, value, unit=unit_id)
@@ -114,7 +115,7 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
                 else:
                     break
                 
-            self.DEBUG.set_value("Response:", handle)
+            self.DEBUG.set_value("Response:", str(handle))
 
             # Increase write success count
             if not handle.isError():
@@ -142,19 +143,19 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
         return None
 
     def on_input_value(self, index, value):
-        if index == self.PIN_I_HR1_NUM_VALUE or index == self.PIN_I_HR1_STR_VALUE:
-            self.write_value(self._get_input_value(self.PIN_I_HOLDING_REGISTER1),
-                             self._get_input_value(self.PIN_I_HR1_DATATYPE),
+        if index == self.PIN_I_R1_NUM_VALUE or index == self.PIN_I_R1_STR_VALUE:
+            self.write_value(self._get_input_value(self.PIN_I_R1_ADDRESS),
+                             self._get_input_value(self.PIN_I_R1_DATATYPE),
                              value)
-        elif index == self.PIN_I_HR2_NUM_VALUE or index == self.PIN_I_HR2_STR_VALUE:
-            self.write_value(self._get_input_value(self.PIN_I_HOLDING_REGISTER2),
-                             self._get_input_value(self.PIN_I_HR2_DATATYPE),
+        elif index == self.PIN_I_R2_NUM_VALUE or index == self.PIN_I_R2_STR_VALUE:
+            self.write_value(self._get_input_value(self.PIN_I_R2_ADDRESS),
+                             self._get_input_value(self.PIN_I_R2_DATATYPE),
                              value)
-        elif index == self.PIN_I_HR3_NUM_VALUE or index == self.PIN_I_HR3_STR_VALUE:
-            self.write_value(self._get_input_value(self.PIN_I_HOLDING_REGISTER3),
-                             self._get_input_value(self.PIN_I_HR3_DATATYPE),
+        elif index == self.PIN_I_R3_NUM_VALUE or index == self.PIN_I_R3_STR_VALUE:
+            self.write_value(self._get_input_value(self.PIN_I_R3_ADDRESS),
+                             self._get_input_value(self.PIN_I_R3_DATATYPE),
                              value)
-        elif index == self.PIN_I_HR4_NUM_VALUE or index == self.PIN_I_HR4_STR_VALUE:
-            self.write_value(self._get_input_value(self.PIN_I_HOLDING_REGISTER4),
-                             self._get_input_value(self.PIN_I_HR4_DATATYPE),
+        elif index == self.PIN_I_R4_NUM_VALUE or index == self.PIN_I_R4_STR_VALUE:
+            self.write_value(self._get_input_value(self.PIN_I_R4_ADDRESS),
+                             self._get_input_value(self.PIN_I_R4_DATATYPE),
                              value)
