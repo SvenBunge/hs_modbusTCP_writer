@@ -69,6 +69,7 @@ class ModbusTransactionManager(object):
         self.retry_on_invalid = kwargs.get('retry_on_invalid',
                                            Defaults.RetryOnInvalid)
         self.retries = kwargs.get('retries', Defaults.Retries) or 1
+        self.reset_socket = kwargs.get('reset_socket', True)
         self._transaction_lock = RLock()
         self._no_response_devices = []
         if client:
@@ -122,7 +123,7 @@ class ModbusTransactionManager(object):
             return False
 
         mbap = self.client.framer.decode_data(response)
-        if mbap.get('unit') != request.unit_id or mbap.get('fcode') != request.function_code:
+        if mbap.get('unit') != request.unit_id or mbap.get('fcode') & 0x7F != request.function_code:
             return False
 
         if 'length' in mbap and exp_resp_len:
@@ -217,19 +218,22 @@ class ModbusTransactionManager(object):
                                 "/Unable to decode response")
                             response = ModbusIOException(last_exception,
                                                          request.function_code)
+                        if self.reset_socket:
+                            self.client.close()
                     if hasattr(self.client, "state"):
                         _logger.debug("Changing transaction state from "
                                       "'PROCESSING REPLY' to "
                                       "'TRANSACTION_COMPLETE'")
                         self.client.state = (
                             ModbusTransactionState.TRANSACTION_COMPLETE)
-                self.client.close()
+
                 return response
             except ModbusIOException as ex:
                 # Handle decode errors in processIncomingPacket method
                 _logger.exception(ex)
-                self.client.close()
                 self.client.state = ModbusTransactionState.TRANSACTION_COMPLETE
+                if self.reset_socket:
+                    self.client.close()
                 return ex
 
     def _retry_transaction(self, retries, reason,
@@ -243,11 +247,12 @@ class ModbusTransactionManager(object):
             time.sleep(delay)
             _logger.debug("Sleeping {}".format(delay))
         self.client.connect()
-        in_waiting = self.client._in_waiting()
-        if in_waiting:
-            if response_length == in_waiting:
-                result = self._recv(response_length, full)
-                return result, None
+        if hasattr(self.client, "_in_waiting"):
+            in_waiting = self.client._in_waiting()
+            if in_waiting:
+                if response_length == in_waiting:
+                    result = self._recv(response_length, full)
+                    return result, None
         return self._transact(packet, response_length, full=full)
 
     def _transact(self, packet, response_length,
@@ -293,7 +298,8 @@ class ModbusTransactionManager(object):
 
         except (socket.error, ModbusIOException,
                 InvalidMessageReceivedException) as msg:
-            self.client.close()
+            if self.reset_socket:
+                self.client.close()
             _logger.debug("Transaction failed. (%s) " % msg)
             last_exception = msg
             result = b''
