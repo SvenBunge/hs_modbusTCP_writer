@@ -20,24 +20,25 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
         self.PIN_I_MODBUS_SLAVE_IP=1
         self.PIN_I_PORT=2
         self.PIN_I_SLAVE_ID=3
-        self.PIN_I_MODBUS_WORDORDER=4
-        self.PIN_I_MODBUS_BYTEORDER=5
-        self.PIN_I_R1_ADDRESS=6
-        self.PIN_I_R1_DATATYPE=7
-        self.PIN_I_R1_NUM_VALUE=8
-        self.PIN_I_R1_STR_VALUE=9
-        self.PIN_I_R2_ADDRESS=10
-        self.PIN_I_R2_DATATYPE=11
-        self.PIN_I_R2_NUM_VALUE=12
-        self.PIN_I_R2_STR_VALUE=13
-        self.PIN_I_R3_ADDRESS=14
-        self.PIN_I_R3_DATATYPE=15
-        self.PIN_I_R3_NUM_VALUE=16
-        self.PIN_I_R3_STR_VALUE=17
-        self.PIN_I_R4_ADDRESS=18
-        self.PIN_I_R4_DATATYPE=19
-        self.PIN_I_R4_NUM_VALUE=20
-        self.PIN_I_R4_STR_VALUE=21
+        self.PIN_I_KEEP_ALIVE=4
+        self.PIN_I_MODBUS_WORDORDER=5
+        self.PIN_I_MODBUS_BYTEORDER=6
+        self.PIN_I_R1_ADDRESS=7
+        self.PIN_I_R1_DATATYPE=8
+        self.PIN_I_R1_NUM_VALUE=9
+        self.PIN_I_R1_STR_VALUE=10
+        self.PIN_I_R2_ADDRESS=11
+        self.PIN_I_R2_DATATYPE=12
+        self.PIN_I_R2_NUM_VALUE=13
+        self.PIN_I_R2_STR_VALUE=14
+        self.PIN_I_R3_ADDRESS=15
+        self.PIN_I_R3_DATATYPE=16
+        self.PIN_I_R3_NUM_VALUE=17
+        self.PIN_I_R3_STR_VALUE=18
+        self.PIN_I_R4_ADDRESS=19
+        self.PIN_I_R4_DATATYPE=20
+        self.PIN_I_R4_NUM_VALUE=21
+        self.PIN_I_R4_STR_VALUE=22
         self.PIN_O_WRITE_COUNT=1
         self.FRAMEWORK._run_in_context_thread(self.on_init)
 
@@ -126,6 +127,9 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
             self.DEBUG.set_value("Last exception msg logged", "Message: " + err.message)
             self.LOGGER.error(err)
             raise
+        finally:
+            if self._get_input_value(self.PIN_I_KEEP_ALIVE) != 1:
+                self.client.close()
 
     def word_order(self):
         if int(self._get_input_value(self.PIN_I_MODBUS_WORDORDER)) == 1:
