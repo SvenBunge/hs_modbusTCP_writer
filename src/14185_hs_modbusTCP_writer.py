@@ -128,7 +128,7 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
             self.LOGGER.error(err)
             raise
         finally:
-            if self._get_input_value(self.PIN_I_KEEP_ALIVE) != 1:
+            if int(self._get_input_value(self.PIN_I_KEEP_ALIVE)) != 1:
                 self.client.close()
 
     def word_order(self):
