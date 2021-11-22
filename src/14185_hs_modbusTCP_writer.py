@@ -5,6 +5,7 @@ import pymodbus  # To not delete this module reference!!
 from pymodbus.constants import Endian
 from pymodbus.payload import BinaryPayloadBuilder
 from pymodbus.client.sync import ModbusTcpClient
+from pymodbus.exceptions import ConnectionException
 
 ##!!!!##################################################################################################
 #### Own written code can be placed above this commentblock . Do not change or delete commentblock! ####
@@ -123,9 +124,12 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
                 self.counter += 1
                 self._set_output_value(self.PIN_O_WRITE_COUNT, self.counter)
 
+        except ConnectionException as con_err:
+            self.DEBUG.set_value("Last exception msg logged", "Message: " + str(con_err))
+            self.LOGGER.error(str(con_err))
         except Exception as err:
             self.DEBUG.set_value("Last exception msg logged", "Message: " + err.message)
-            self.LOGGER.error(err)
+            self.LOGGER.error(str(err))
             raise
         finally:
             if int(self._get_input_value(self.PIN_I_KEEP_ALIVE)) != 1:
