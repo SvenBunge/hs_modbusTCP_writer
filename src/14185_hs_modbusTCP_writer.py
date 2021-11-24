@@ -79,7 +79,8 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
         try:
             self.DEBUG.set_value("Conn IP:Port (UnitID)", ip_address + ":" + str(port) + " (" + str(unit_id) + ") ")
             if self.client is None:
-                self.client = ModbusTcpClient(ip_address, port)
+                self.client = ModbusTcpClient(ip_address, port, timeout=10, retry_on_empty=True, retry_on_invalid=True,
+                    reset_socket=False)
             if self.client.is_socket_open() is False:
                 self.client.connect()
 
