@@ -51,20 +51,21 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
         self.client = None
         self.counter = 0
         self.data_types = {
-            'int8': {'method': 'add_8bit_int', 'singleWrite': False, 'minVal': -128, 'maxVal': 127},
+            'int8': {'method': 'add_8bit_int', 'minVal': -128, 'maxVal': 127},
             'uint8': {'method': 'add_8bit_uint', 'singleWrite': True, 'minVal': 0, 'maxVal': 255},
-            'int16': {'method': 'add_16bit_int', 'singleWrite': False, 'minVal': -32768, 'maxVal': 32767},
+            'int16': {'method': 'add_16bit_int', 'minVal': -32768, 'maxVal': 32767},
             'uint16': {'method': 'add_16bit_uint', 'singleWrite': True, 'minVal': 0, 'maxVal': 65535},
-            'int32': {'method': 'add_32bit_int', 'singleWrite': False, 'minVal': -2147483648, 'maxVal': 2147483647},
-            'uint32': {'method': 'add_32bit_uint', 'singleWrite': False, 'minVal': 0, 'maxVal': 4294967295},
-            'int64': {'method': 'add_64bit_int', 'singleWrite': False, 'minVal': -9223372036854775808,
+            'int32': {'method': 'add_32bit_int', 'minVal': -2147483648, 'maxVal': 2147483647},
+            'uint32': {'method': 'add_32bit_uint', 'minVal': 0, 'maxVal': 4294967295},
+            'int64': {'method': 'add_64bit_int', 'minVal': -9223372036854775808,
                       'maxVal': 9223372036854775807},
-            'uint64': {'method': 'add_64bit_uint', 'singleWrite': False, 'minVal': 0, 'maxVal': 18446744073709551615},
-            'float32': {'method': 'add_32bit_float', 'singleWrite': False, 'minVal': -3.402823E+38,
+            'uint64': {'method': 'add_64bit_uint', 'minVal': 0, 'maxVal': 18446744073709551615},
+            'float32': {'method': 'add_32bit_float', 'minVal': -3.402823E+38,
                         'maxVal': 3.402823E+38},
-            'float64': {'method': 'add_64bit_float', 'singleWrite': False, 'minVal': -1.79769313486232E+308,
+            'float64': {'method': 'add_64bit_float', 'minVal': -1.79769313486232E+308,
                         'maxVal': 1.79769313486232E+308 },
-            'string': {'method': 'add_string', 'singleWrite': False}
+            'string': {'method': 'add_string'},
+            'bool': {'method': 'no_method', 'coilWrite': True}
         }
 
     def write_value(self, reg_address, reg_type, value):
@@ -90,11 +91,11 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
                 return None
 
             # Bounce check
-            if reg_type != 'string' and register_settings.get('minVal') > value:
+            if 'minVal' in register_settings and register_settings.get('minVal') > value:
                 self.LOGGER.info("Skipping " + str(reg_address) + " of type " + reg_type + " because val "
                                  + str(value) + " fall below type limit!")
                 return None
-            if reg_type != 'string' and register_settings.get('maxVal') < value:
+            if 'maxVal' in register_settings and register_settings.get('maxVal') < value:
                 self.LOGGER.info("Skipping " + str(reg_address) + " of type " + reg_type + " because val "
                                  + str(value) + " exceeds type limit!")
                 return None
@@ -105,9 +106,11 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
             # devices because not all support writing multiple registers.
             handle = None
             for attempt in range(3):
-                if register_settings.get('singleWrite'):
+                if 'singleWrite' in register_settings and register_settings.get('singleWrite'): # Function Code 6
                     handle = self.client.write_register(reg_address, value, unit=unit_id)
-                else:
+                elif 'coilWrite' in register_settings and register_settings.get('coilWrite'): # Function code 5
+                    handle = self.client.write_coil(reg_address, bool(value), unit=unit_id)
+                else: # Function code 16 (0x10)
                     builder = BinaryPayloadBuilder(byteorder=self.byte_order(), wordorder=self.word_order())
                     getattr(builder, register_settings.get('method'))(value)
                     payload = builder.build()
