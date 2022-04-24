@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <config>
     <modules>
-        <module category="Datenaustausch" context="hs_modbusTCP_writer14185" id="14185" name="hs_modbusTCP_writer" sinternal_name="hs_modbusTCP_writer" external_name="ModbusTCP Writer (14185)" version="0.7.0">
+        <module category="Datenaustausch" context="hs_modbusTCP_writer14185" id="14185" name="hs_modbusTCP_writer" sinternal_name="hs_modbusTCP_writer" external_name="ModbusTCP Writer (14185)" version="0.7.1">
             <inputs>
                 <input type="string" const_name="modbus_slave_ip" init_value="127.0.0.1">IP of modbus server</input>
                 <input type="number" const_name="port" init_value="502">Modbus TCP Port (default: 502)</input>

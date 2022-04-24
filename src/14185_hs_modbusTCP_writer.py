@@ -52,9 +52,9 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
         self.counter = 0
         self.data_types = {
             'int8': {'method': 'add_8bit_int', 'minVal': -128, 'maxVal': 127},
-            'uint8': {'method': 'add_8bit_uint', 'singleWrite': True, 'minVal': 0, 'maxVal': 255},
+            'uint8': {'method': 'add_8bit_uint', 'minVal': 0, 'maxVal': 255},
             'int16': {'method': 'add_16bit_int', 'minVal': -32768, 'maxVal': 32767},
-            'uint16': {'method': 'add_16bit_uint', 'singleWrite': True, 'minVal': 0, 'maxVal': 65535},
+            'uint16': {'method': 'add_16bit_uint', 'minVal': 0, 'maxVal': 65535},
             'int32': {'method': 'add_32bit_int', 'minVal': -2147483648, 'maxVal': 2147483647},
             'uint32': {'method': 'add_32bit_uint', 'minVal': 0, 'maxVal': 4294967295},
             'int64': {'method': 'add_64bit_int', 'minVal': -9223372036854775808,
@@ -65,7 +65,7 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
             'float64': {'method': 'add_64bit_float', 'minVal': -1.79769313486232E+308,
                         'maxVal': 1.79769313486232E+308 },
             'string': {'method': 'add_string'},
-            'bool': {'method': 'no_method', 'coilWrite': True}
+            'bool': {'method': 'add_bits', 'coilWrite': True}
         }
 
     def write_value(self, reg_address, reg_type, value):
@@ -81,7 +81,7 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
             self.DEBUG.set_value("Conn IP:Port (UnitID)", ip_address + ":" + str(port) + " (" + str(unit_id) + ") ")
             if self.client is None:
                 self.client = ModbusTcpClient(ip_address, port, timeout=10, retry_on_empty=True, retry_on_invalid=True,
-                    reset_socket=False)
+                                              reset_socket=False)
             if self.client.is_socket_open() is False:
                 self.client.connect()
 
@@ -102,25 +102,25 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
 
             self.DEBUG.set_value("Write type " + str(reg_type) + " in register  " + str(reg_address), str(value))
 
-            # For simple datatype writes without transforming into a single register. Higher compatibility with
+            # For simple datatype writes into a single register. Higher compatibility with
             # devices because not all support writing multiple registers.
+            builder = BinaryPayloadBuilder(byteorder=self.byte_order(), wordorder=self.word_order())
+            getattr(builder, register_settings.get('method'))(value)
+            payload = builder.build()
             handle = None
             for attempt in range(3):
-                if 'singleWrite' in register_settings and register_settings.get('singleWrite'): # Function Code 6
-                    handle = self.client.write_register(reg_address, value, unit=unit_id)
-                elif 'coilWrite' in register_settings and register_settings.get('coilWrite'): # Function code 5
-                    handle = self.client.write_coil(reg_address, bool(value), unit=unit_id)
-                else: # Function code 16 (0x10)
-                    builder = BinaryPayloadBuilder(byteorder=self.byte_order(), wordorder=self.word_order())
-                    getattr(builder, register_settings.get('method'))(value)
-                    payload = builder.build()
+                if 'coilWrite' in register_settings and register_settings.get('coilWrite'): # Function code 5
+                    handle = self.client.write_coil(reg_address, payload[0], skip_encode=True, unit=unit_id)
+                elif payload.length == 1: # Function code 6
+                    handle = self.client.write_register(reg_address, payload[0], skip_encode=True, unit=unit_id)
+                else: # FC 16 (0x10)
                     handle = self.client.write_registers(reg_address, payload, skip_encode=True, unit=unit_id)
 
                 if handle.isError():
                     time.sleep(0.1)
                 else:
                     break
-                
+
             self.DEBUG.set_value("Response:", str(handle))
 
             # Increase write success count
