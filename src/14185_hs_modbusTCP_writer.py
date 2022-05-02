@@ -65,7 +65,7 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
             'float64': {'method': 'add_64bit_float', 'minVal': -1.79769313486232E+308,
                         'maxVal': 1.79769313486232E+308 },
             'string': {'method': 'add_string'},
-            'bool': {'method': 'add_bits', 'coilWrite': True}
+            'bool': {'coilWrite': True, 'minVal': 0, 'maxVal': 1}
         }
 
     def write_value(self, reg_address, reg_type, value):
@@ -104,16 +104,18 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
 
             # For simple datatype writes into a single register. Higher compatibility with
             # devices because not all support writing multiple registers.
-            builder = BinaryPayloadBuilder(byteorder=self.byte_order(), wordorder=self.word_order())
-            getattr(builder, register_settings.get('method'))(value)
-            payload = builder.build()
+            if 'method' in register_settings:
+                builder = BinaryPayloadBuilder(byteorder=self.byte_order(), wordorder=self.word_order())
+                getattr(builder, register_settings.get('method'))(value)
+                payload = builder.build()
+
             handle = None
             for attempt in range(3):
                 if 'coilWrite' in register_settings and register_settings.get('coilWrite'): # Function code 5
-                    handle = self.client.write_coil(reg_address, payload[0], skip_encode=True, unit=unit_id)
-                elif payload.length == 1: # Function code 6
+                    handle = self.client.write_coil(reg_address, value, unit=unit_id)
+                elif len(payload) == 1: # Function code 6
                     handle = self.client.write_register(reg_address, payload[0], skip_encode=True, unit=unit_id)
-                else: # FC 16 (0x10)
+                else: # Function code 16 (0x10)
                     handle = self.client.write_registers(reg_address, payload, skip_encode=True, unit=unit_id)
 
                 if handle.isError():
