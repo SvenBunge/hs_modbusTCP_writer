@@ -63,7 +63,7 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
             'float32': {'method': 'add_32bit_float', 'minVal': -3.402823E+38,
                         'maxVal': 3.402823E+38},
             'float64': {'method': 'add_64bit_float', 'minVal': -1.79769313486232E+308,
-                        'maxVal': 1.79769313486232E+308 },
+                        'maxVal': 1.79769313486232E+308},
             'string': {'method': 'add_string'},
             'bool': {'coilWrite': True, 'minVal': 0, 'maxVal': 1}
         }
@@ -109,13 +109,15 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
                 getattr(builder, register_settings.get('method'))(value)
                 payload = builder.build()
 
+            self.DEBUG.set_value("Response:", "Before writing")
+
             handle = None
             for attempt in range(3):
-                if 'coilWrite' in register_settings and register_settings.get('coilWrite'): # Function code 5
+                if bool(register_settings.get('coilWrite', False)):  # Function code 5
                     handle = self.client.write_coil(reg_address, value, unit=unit_id)
-                elif len(payload) == 1: # Function code 6
+                elif len(payload) == 1:  # Function code 6
                     handle = self.client.write_register(reg_address, payload[0], skip_encode=True, unit=unit_id)
-                else: # Function code 16 (0x10)
+                else:  # Function code 16 (0x10)
                     handle = self.client.write_registers(reg_address, payload, skip_encode=True, unit=unit_id)
 
                 if handle.isError():
@@ -129,26 +131,28 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
             if not handle.isError():
                 self.counter += 1
                 self._set_output_value(self.PIN_O_WRITE_COUNT, self.counter)
+            else:
+                self.DEBUG.set_value("Last exception msg logged", "Message: " + str(handle))
 
         except ConnectionException as con_err:
             self.DEBUG.set_value("Last exception msg logged", "Message: " + str(con_err))
             self.LOGGER.error(str(con_err))
         except Exception as err:
-            self.DEBUG.set_value("Last exception msg logged", "Message: " + err.message)
+            self.DEBUG.set_value("Last exception msg logged", "Message: " + str(err))
             self.LOGGER.error(str(err))
             raise
         finally:
-            if int(self._get_input_value(self.PIN_I_KEEP_ALIVE)) != 1:
+            if bool(self._get_input_value(self.PIN_I_KEEP_ALIVE)):
                 self.client.close()
 
     def word_order(self):
-        if int(self._get_input_value(self.PIN_I_MODBUS_WORDORDER)) == 1:
+        if bool(self._get_input_value(self.PIN_I_MODBUS_WORDORDER)):
             return Endian.Big
         else:
             return Endian.Little
 
     def byte_order(self):
-        if int(self._get_input_value(self.PIN_I_MODBUS_BYTEORDER)) == 1:
+        if bool(self._get_input_value(self.PIN_I_MODBUS_BYTEORDER)):
             return Endian.Big
         else:
             return Endian.Little
