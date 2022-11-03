@@ -24,22 +24,23 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
         self.PIN_I_KEEP_ALIVE=4
         self.PIN_I_MODBUS_WORDORDER=5
         self.PIN_I_MODBUS_BYTEORDER=6
-        self.PIN_I_R1_ADDRESS=7
-        self.PIN_I_R1_DATATYPE=8
-        self.PIN_I_R1_NUM_VALUE=9
-        self.PIN_I_R1_STR_VALUE=10
-        self.PIN_I_R2_ADDRESS=11
-        self.PIN_I_R2_DATATYPE=12
-        self.PIN_I_R2_NUM_VALUE=13
-        self.PIN_I_R2_STR_VALUE=14
-        self.PIN_I_R3_ADDRESS=15
-        self.PIN_I_R3_DATATYPE=16
-        self.PIN_I_R3_NUM_VALUE=17
-        self.PIN_I_R3_STR_VALUE=18
-        self.PIN_I_R4_ADDRESS=19
-        self.PIN_I_R4_DATATYPE=20
-        self.PIN_I_R4_NUM_VALUE=21
-        self.PIN_I_R4_STR_VALUE=22
+        self.PIN_I_ENABLE_DEBUG=7
+        self.PIN_I_R1_ADDRESS=8
+        self.PIN_I_R1_DATATYPE=9
+        self.PIN_I_R1_NUM_VALUE=10
+        self.PIN_I_R1_STR_VALUE=11
+        self.PIN_I_R2_ADDRESS=12
+        self.PIN_I_R2_DATATYPE=13
+        self.PIN_I_R2_NUM_VALUE=14
+        self.PIN_I_R2_STR_VALUE=15
+        self.PIN_I_R3_ADDRESS=16
+        self.PIN_I_R3_DATATYPE=17
+        self.PIN_I_R3_NUM_VALUE=18
+        self.PIN_I_R3_STR_VALUE=19
+        self.PIN_I_R4_ADDRESS=20
+        self.PIN_I_R4_DATATYPE=21
+        self.PIN_I_R4_NUM_VALUE=22
+        self.PIN_I_R4_STR_VALUE=23
         self.PIN_O_WRITE_COUNT=1
         self.FRAMEWORK._run_in_context_thread(self.on_init)
 
@@ -47,7 +48,7 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
 #### Own written code can be placed after this commentblock . Do not change or delete commentblock! ####
 ###################################################################################################!!!##
 
-        self.DEBUG = self.FRAMEWORK.create_debug_section()
+        self.DEBUG = None
         self.client = None
         self.counter = 0
         self.data_types = {
@@ -78,7 +79,7 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
         unit_id = int(self._get_input_value(self.PIN_I_SLAVE_ID))
 
         try:
-            self.DEBUG.set_value("Conn IP:Port (UnitID)", ip_address + ":" + str(port) + " (" + str(unit_id) + ") ")
+            self.log_debug("Conn IP:Port (UnitID)", ip_address + ":" + str(port) + " (" + str(unit_id) + ") ")
             if self.client is None:
                 self.client = ModbusTcpClient(ip_address, port, timeout=10, retry_on_empty=True, retry_on_invalid=True,
                                               reset_socket=False)
@@ -87,7 +88,7 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
 
             register_settings = self.data_types.get(reg_type)
             if register_settings is None:  # No matching type entry found. lets skip over
-                self.DEBUG.set_value("No matching data type found: ", reg_type)
+                self.log_debug("No matching data type found: ", reg_type)
                 return None
 
             # Bounce check
@@ -100,7 +101,7 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
                                  + str(value) + " exceeds type limit!")
                 return None
 
-            self.DEBUG.set_value("Write type " + str(reg_type) + " in register  " + str(reg_address), str(value))
+            self.log_debug("Write type " + str(reg_type) + " in register  " + str(reg_address), str(value))
 
             # For simple datatype writes into a single register. Higher compatibility with
             # devices because not all support writing multiple registers.
@@ -108,8 +109,6 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
                 builder = BinaryPayloadBuilder(byteorder=self.byte_order(), wordorder=self.word_order())
                 getattr(builder, register_settings.get('method'))(value)
                 payload = builder.build()
-
-            self.DEBUG.set_value("Response:", "Before writing")
 
             handle = None
             for attempt in range(3):
@@ -120,25 +119,25 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
                 else:  # Function code 16 (0x10)
                     handle = self.client.write_registers(reg_address, payload, skip_encode=True, unit=unit_id)
 
+                self.log_debug("Response:", str(handle))
+
                 if handle.isError():
                     time.sleep(0.1)
                 else:
                     break
-
-            self.DEBUG.set_value("Response:", str(handle))
 
             # Increase write success count
             if not handle.isError():
                 self.counter += 1
                 self._set_output_value(self.PIN_O_WRITE_COUNT, self.counter)
             else:
-                self.DEBUG.set_value("Last exception msg logged", "Message: " + str(handle))
+                self.log_debug("Last exception msg logged", "Message: " + str(handle))
 
         except ConnectionException as con_err:
-            self.DEBUG.set_value("Last exception msg logged", "Message: " + str(con_err))
+            self.log_debug("Last exception msg logged", "Message: " + str(con_err))
             self.LOGGER.error(str(con_err))
         except Exception as err:
-            self.DEBUG.set_value("Last exception msg logged", "Message: " + str(err))
+            self.log_debug("Last exception msg logged", "Message: " + str(err))
             self.LOGGER.error(str(err))
             raise
         finally:
@@ -177,3 +176,10 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
             self.write_value(self._get_input_value(self.PIN_I_R4_ADDRESS),
                              self._get_input_value(self.PIN_I_R4_DATATYPE),
                              value)
+
+    def log_debug(self, key, value):
+        if bool(self._get_input_value(self.PIN_I_ENABLE_DEBUG)):
+            if not self.DEBUG:
+                self.DEBUG = self.FRAMEWORK.create_debug_section()
+
+            self.DEBUG.set_value(str(key), str(value))
