@@ -39,6 +39,8 @@
             <imports>
                 <import>hsl20_3_timer</import>
                 <import>lib/pymodbus</import>
+                <import>lib/serial</import>
+                <import>lib/six</import>
             </imports>
         </module>
     </modules>
