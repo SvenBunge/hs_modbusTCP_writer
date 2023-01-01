@@ -176,6 +176,9 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
             self.write_value(self._get_input_value(self.PIN_I_R4_ADDRESS),
                              self._get_input_value(self.PIN_I_R4_DATATYPE),
                              value)
+        elif index == self.PIN_I_MODBUS_SLAVE_IP or index == self.PIN_I_PORT or index == self.PIN_I_SLAVE_ID:
+            self.client.close()
+            self.client = None  # will recreate a connection after next use.
 
     def log_debug(self, key, value):
         if bool(self._get_input_value(self.PIN_I_ENABLE_DEBUG)):
