@@ -42,6 +42,7 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
         self.PIN_I_R4_NUM_VALUE=22
         self.PIN_I_R4_STR_VALUE=23
         self.PIN_O_WRITE_COUNT=1
+        self.PIN_O_ERROR_COUNT=2
         self.FRAMEWORK._run_in_context_thread(self.on_init)
 
 ########################################################################################################
@@ -50,7 +51,8 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
 
         self.DEBUG = None
         self.client = None
-        self.counter = 0
+        self.write_count = 0
+        self.error_count = 0
         self.data_types = {
             'int8': {'method': 'add_8bit_int', 'minVal': -128, 'maxVal': 127},
             'uint8': {'method': 'add_8bit_uint', 'minVal': 0, 'maxVal': 255},
@@ -80,14 +82,14 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
 
         try:
             self.log_debug("Conn IP:Port (UnitID)", ip_address + ":" + str(port) + " (" + str(unit_id) + ") ")
-            if self.client is None:
+            if not self.client:
                 self.client = ModbusTcpClient(ip_address, port, timeout=10, retry_on_empty=True, retry_on_invalid=True,
                                               reset_socket=False)
-            if self.client.is_socket_open() is False:
+            if not self.client.is_socket_open():
                 self.client.connect()
 
             register_settings = self.data_types.get(reg_type)
-            if register_settings is None:  # No matching type entry found. lets skip over
+            if not register_settings:  # No matching type entry found. lets skip over
                 self.log_debug("No matching data type found: ", reg_type)
                 return None
 
@@ -128,21 +130,35 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
 
             # Increase write success count
             if not handle.isError():
-                self.counter += 1
-                self._set_output_value(self.PIN_O_WRITE_COUNT, self.counter)
+                self.write_count += 1
+                self._set_output_value(self.PIN_O_WRITE_COUNT, self.write_count)
             else:
                 self.log_debug("Last exception msg logged", "Message: " + str(handle))
 
         except ConnectionException as con_err:
             self.log_debug("Last exception msg logged", "Message: " + str(con_err))
             self.LOGGER.error(str(con_err))
+            self.error_count += 1
+            self._set_output_value(self.PIN_O_ERROR_COUNT, self.error_count)
+            if self.client:  # Lets start with a fresh client connection and object after the Exception
+                self.client.close()
+                self.client = None
         except Exception as err:
             self.log_debug("Last exception msg logged", "Message: " + str(err))
             self.LOGGER.error(str(err))
-            raise
-        finally:
-            if bool(self._get_input_value(self.PIN_I_KEEP_ALIVE)):
+            self.error_count += 1
+            self._set_output_value(self.PIN_O_ERROR_COUNT, self.error_count)
+            if self.client:  # Lets start with a fresh client connection and object after the Exception
                 self.client.close()
+                self.client = None
+            # Throw exception only if in debug mode
+            if bool(self._get_input_value(self.PIN_I_ENABLE_DEBUG)):
+                raise
+        finally:
+            if self.client and not bool(self._get_input_value(self.PIN_I_KEEP_ALIVE)):
+                self.client.close()
+                # Let's drop the client without keepalive to start with new client. Had an issue at 4.2.2023
+                self.client = None
 
     def word_order(self):
         if bool(self._get_input_value(self.PIN_I_MODBUS_WORDORDER)):
