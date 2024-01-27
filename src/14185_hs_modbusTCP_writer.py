@@ -88,7 +88,7 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
             if not self.client.is_socket_open():
                 self.client.connect()
 
-            register_settings = self.data_types.get(reg_type)
+            register_settings = self.data_types.get(str(reg_type.split(';',1)[0]).lower())
             if not register_settings:  # No matching type entry found. lets skip over
                 self.log_debug("No matching data type found: ", reg_type)
                 return None
@@ -113,10 +113,16 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
                 payload = builder.build()
 
             handle = None
+            reg_type_options = reg_type.split(';', 1)
+            if len(reg_type_options) > 1 and str(reg_type_options[1]).lower() == "fc16":
+                always_f16 = True
+            else:
+                always_f16 = False
+
             for attempt in range(3):
                 if bool(register_settings.get('coilWrite', False)):  # Function code 5
                     handle = self.client.write_coil(reg_address, value, unit=unit_id)
-                elif len(payload) == 1:  # Function code 6
+                elif len(payload) == 1 and not always_f16:  # Function code 6
                     handle = self.client.write_register(reg_address, payload[0], skip_encode=True, unit=unit_id)
                 else:  # Function code 16 (0x10)
                     handle = self.client.write_registers(reg_address, payload, skip_encode=True, unit=unit_id)
