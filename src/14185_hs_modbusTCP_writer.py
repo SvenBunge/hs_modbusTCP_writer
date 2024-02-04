@@ -12,12 +12,12 @@ from pymodbus.exceptions import ConnectionException
 ########################################################################################################
 ##** Code created by generator - DO NOT CHANGE! **##
 
-class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
+class Hs_modbusTCP_writer14185(hsl20_4.BaseModule):
 
     def __init__(self, homeserver_context):
-        hsl20_3.BaseModule.__init__(self, homeserver_context, "hs_modbusTCP_writer14185")
+        hsl20_4.BaseModule.__init__(self, homeserver_context, "hs_modbusTCP_writer14185")
         self.FRAMEWORK = self._get_framework()
-        self.LOGGER = self._get_logger(hsl20_3.LOGGING_NONE,())
+        self.LOGGER = self._get_logger(hsl20_4.LOGGING_NONE,())
         self.PIN_I_MODBUS_SLAVE_IP=1
         self.PIN_I_PORT=2
         self.PIN_I_SLAVE_ID=3
@@ -43,7 +43,6 @@ class Hs_modbusTCP_writer14185(hsl20_3.BaseModule):
         self.PIN_I_R4_STR_VALUE=23
         self.PIN_O_WRITE_COUNT=1
         self.PIN_O_ERROR_COUNT=2
-        self.FRAMEWORK._run_in_context_thread(self.on_init)
 
 ########################################################################################################
 #### Own written code can be placed after this commentblock . Do not change or delete commentblock! ####
